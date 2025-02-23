@@ -5,6 +5,8 @@ using System.Linq;
 using Microsoft.EntityFrameworkCore;
 using CargoPayAPI.Services;
 using System.Transactions;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
 
 namespace CargoPayAPI.Controllers
 {
@@ -19,25 +21,19 @@ namespace CargoPayAPI.Controllers
             _context = context;
         }
 
+        [Authorize]
         // POST: api/payment
         [HttpPost]
-        public IActionResult CreatePayment([FromBody] Payment payment)
+        public async Task<IActionResult> CreatePaymentAsync([FromBody] Payment payment)
         {
-            using (var transaction = new TransactionScope(TransactionScopeOption.Required,
-                   new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }))
+            using (var transaction = new TransactionScope(TransactionScopeAsyncFlowOption.Enabled))
             {
-                var card = _context.Cards.FirstOrDefault(c => c.Id == payment.CardId);
+                var card = await _context.Cards.FirstOrDefaultAsync(c => c.Id == payment.CardId);
                 if (card == null)
                 {
                     return NotFound("Card not found.");
                 }
 
-                if (card.Balance < payment.Amount)
-                {
-                    return BadRequest("Insufficient balance.");
-                }
-
-                // Aplicar la tarifa de servicio
                 decimal fee = FeeService.Instance.GetCurrentFee();
                 decimal totalAmount = payment.Amount + fee;
 
@@ -46,45 +42,48 @@ namespace CargoPayAPI.Controllers
                     return BadRequest("Insufficient balance including fee.");
                 }
 
-                // Descontar saldo y guardar el pago
+                // Aplicamos concurrencia con EF Core
                 card.Balance -= totalAmount;
                 payment.Fee = fee;
 
                 _context.Payments.Add(payment);
-                _context.SaveChanges();
 
-                transaction.Complete(); 
+                try
+                {
+                    await _context.SaveChangesAsync(); 
+                    transaction.Complete();
+                }
+                catch (DbUpdateConcurrencyException)
+                {
+                    return Conflict("Transaction failed due to concurrent modification.");
+                }
+
+                return CreatedAtAction(nameof(GetPaymentById), new { id = payment.Id }, payment);
             }
-
-            return CreatedAtAction(nameof(GetPaymentById), new { id = payment.Id }, new
-            {
-                Message = "Payment successful",
-                PaymentId = payment.Id,
-                Amount = payment.Amount,
-                Fee = payment.Fee,
-                TotalCharged = payment.Amount + payment.Fee,
-                RemainingBalance = _context.Cards.First(c => c.Id == payment.CardId).Balance
-            });
         }
 
         // GET: api/payment
+        [Authorize]
         [HttpGet]
-        public IActionResult GetAllPayments()
+        public async Task<IActionResult> GetAllPayments()
         {
-            var payments = _context.Payments
-            .Include(p => p.Card) 
-            .ToList();
+            var payments = await _context.Payments
+                .AsNoTracking()
+                .Include(p => p.Card)
+                .ToListAsync(); 
 
             return Ok(payments);
         }
 
         // GET: api/payment/{id}
+        [Authorize]
         [HttpGet("{id}")]
-        public IActionResult GetPaymentById(Guid id)
+        public async Task<IActionResult> GetPaymentById(Guid id)
         {
-            var payment = _context.Payments
-                .Include(p => p.Card) 
-                .FirstOrDefault(p => p.Id == id);
+            var payment = await _context.Payments
+                .AsNoTracking()
+                .Include(p => p.Card)
+                .FirstOrDefaultAsync(p => p.Id == id); 
 
             if (payment == null)
             {
@@ -95,13 +94,15 @@ namespace CargoPayAPI.Controllers
         }
 
         // GET: api/payment/card/{cardId}
+        [Authorize]
         [HttpGet("card/{cardId}")]
-        public IActionResult GetPaymentsByCard(Guid cardId)
+        public async Task<IActionResult> GetPaymentsByCard(Guid cardId)
         {
-            var payments = _context.Payments
-                .Include(p => p.Card) 
+            var payments = await _context.Payments
+                .AsNoTracking() 
+                .Include(p => p.Card)
                 .Where(p => p.CardId == cardId)
-                .ToList();
+                .ToListAsync(); 
 
             return Ok(payments);
         }

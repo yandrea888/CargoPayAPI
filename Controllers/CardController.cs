@@ -2,6 +2,7 @@
 using System.Linq;
 using CargoPayAPI.Data;
 using CargoPayAPI.Models;
+using Microsoft.AspNetCore.Authorization;
 
 namespace CargoPayAPI.Controllers
 {
@@ -17,6 +18,7 @@ namespace CargoPayAPI.Controllers
         }
 
         // POST: api/card
+        [Authorize]
         [HttpPost]
         public IActionResult CreateCard([FromBody] Card card)
         {
@@ -39,6 +41,7 @@ namespace CargoPayAPI.Controllers
         }
 
         // GET: api/card/{cardNumber}
+        [Authorize]
         [HttpGet("{cardNumber}")]
         public IActionResult GetCardBalance(string cardNumber)
         {
