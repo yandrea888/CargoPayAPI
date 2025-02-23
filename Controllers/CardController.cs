@@ -20,6 +20,13 @@ namespace CargoPayAPI.Controllers
         [HttpPost]
         public IActionResult CreateCard([FromBody] Card card)
         {
+            // Validar que el número de tarjeta tenga exactamente 15 dígitos
+            if (string.IsNullOrWhiteSpace(card.CardNumber) || card.CardNumber.Length != 15 || !card.CardNumber.All(char.IsDigit))
+            {
+                return BadRequest("Card number must be exactly 15 digits.");
+            }
+
+            // Validar si la tarjeta ya existe
             if (_context.Cards.Any(c => c.CardNumber == card.CardNumber))
             {
                 return BadRequest("Card number already exists.");
@@ -27,6 +34,7 @@ namespace CargoPayAPI.Controllers
 
             _context.Cards.Add(card);
             _context.SaveChanges();
+
             return CreatedAtAction(nameof(GetCardBalance), new { cardNumber = card.CardNumber }, card);
         }
 
