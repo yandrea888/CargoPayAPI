@@ -3,6 +3,8 @@ using CargoPayAPI.Data;
 using CargoPayAPI.Models;
 using System.Linq;
 using Microsoft.EntityFrameworkCore;
+using CargoPayAPI.Services;
+using System.Transactions;
 
 namespace CargoPayAPI.Controllers
 {
@@ -21,24 +23,48 @@ namespace CargoPayAPI.Controllers
         [HttpPost]
         public IActionResult CreatePayment([FromBody] Payment payment)
         {
-            var card = _context.Cards.FirstOrDefault(c => c.Id == payment.CardId);
-            if (card == null)
+            using (var transaction = new TransactionScope(TransactionScopeOption.Required,
+                   new TransactionOptions { IsolationLevel = IsolationLevel.Serializable }))
             {
-                return NotFound("Card not found.");
+                var card = _context.Cards.FirstOrDefault(c => c.Id == payment.CardId);
+                if (card == null)
+                {
+                    return NotFound("Card not found.");
+                }
+
+                if (card.Balance < payment.Amount)
+                {
+                    return BadRequest("Insufficient balance.");
+                }
+
+                // Aplicar la tarifa de servicio
+                decimal fee = FeeService.Instance.GetCurrentFee();
+                decimal totalAmount = payment.Amount + fee;
+
+                if (card.Balance < totalAmount)
+                {
+                    return BadRequest("Insufficient balance including fee.");
+                }
+
+                // Descontar saldo y guardar el pago
+                card.Balance -= totalAmount;
+                payment.Fee = fee;
+
+                _context.Payments.Add(payment);
+                _context.SaveChanges();
+
+                transaction.Complete(); 
             }
 
-            if (card.Balance < payment.Amount)
+            return CreatedAtAction(nameof(GetPaymentById), new { id = payment.Id }, new
             {
-                return BadRequest("Insufficient balance.");
-            }
-
-            // Deduct the amount from the card balance
-            card.Balance -= payment.Amount;
-
-            _context.Payments.Add(payment);
-            _context.SaveChanges();
-
-            return CreatedAtAction(nameof(GetPaymentById), new { id = payment.Id }, payment);
+                Message = "Payment successful",
+                PaymentId = payment.Id,
+                Amount = payment.Amount,
+                Fee = payment.Fee,
+                TotalCharged = payment.Amount + payment.Fee,
+                RemainingBalance = _context.Cards.First(c => c.Id == payment.CardId).Balance
+            });
         }
 
         // GET: api/payment
@@ -57,7 +83,7 @@ namespace CargoPayAPI.Controllers
         public IActionResult GetPaymentById(Guid id)
         {
             var payment = _context.Payments
-                .Include(p => p.Card) // Incluir la tarjeta
+                .Include(p => p.Card) 
                 .FirstOrDefault(p => p.Id == id);
 
             if (payment == null)
@@ -73,7 +99,7 @@ namespace CargoPayAPI.Controllers
         public IActionResult GetPaymentsByCard(Guid cardId)
         {
             var payments = _context.Payments
-                .Include(p => p.Card) // Incluir la tarjeta
+                .Include(p => p.Card) 
                 .Where(p => p.CardId == cardId)
                 .ToList();
 
