@@ -22,14 +22,11 @@ var key = Encoding.UTF8.GetBytes(secretKey);
 // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
-//builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddSwaggerGen(options =>
 {
-    options.SwaggerDoc("v1", new OpenApiInfo { Title = "CargoPay API", Version = "v1" });
-
-    // Configuración de autenticación en Swagger
+    options.SwaggerDoc("v1", new OpenApiInfo { Title = "CargoPay API", Version = "v1" });    
     options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Name = "Authorization",
@@ -37,7 +34,7 @@ builder.Services.AddSwaggerGen(options =>
         Scheme = "Bearer",
         BearerFormat = "JWT",
         In = ParameterLocation.Header,
-        Description = "Ingrese el token JWT en este formato: Bearer {token}"
+        Description = "Enter the JWT token in this format: Bearer {token}"
     });
 
     options.AddSecurityRequirement(new OpenApiSecurityRequirement

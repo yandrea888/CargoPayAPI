@@ -3,6 +3,7 @@ using System.Linq;
 using CargoPayAPI.Data;
 using CargoPayAPI.Models;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.EntityFrameworkCore;
 
 namespace CargoPayAPI.Controllers
 {
@@ -22,22 +23,21 @@ namespace CargoPayAPI.Controllers
         [HttpPost]
         public IActionResult CreateCard([FromBody] Card card)
         {
-            // Validar que el número de tarjeta tenga exactamente 15 dígitos
             if (string.IsNullOrWhiteSpace(card.CardNumber) || card.CardNumber.Length != 15 || !card.CardNumber.All(char.IsDigit))
             {
-                return BadRequest("Card number must be exactly 15 digits.");
+                return BadRequest("Card number must be exactly 15 digits and contain only numbers.");
             }
 
-            // Validar si la tarjeta ya existe
-            if (_context.Cards.Any(c => c.CardNumber == card.CardNumber))
+            try
+            {
+                _context.Cards.Add(card);
+                _context.SaveChanges();
+                return CreatedAtAction(nameof(GetCardBalance), new { cardNumber = card.CardNumber }, card);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("duplicate") == true)
             {
                 return BadRequest("Card number already exists.");
             }
-
-            _context.Cards.Add(card);
-            _context.SaveChanges();
-
-            return CreatedAtAction(nameof(GetCardBalance), new { cardNumber = card.CardNumber }, card);
         }
 
         // GET: api/card/{cardNumber}
@@ -45,13 +45,16 @@ namespace CargoPayAPI.Controllers
         [HttpGet("{cardNumber}")]
         public IActionResult GetCardBalance(string cardNumber)
         {
-            var card = _context.Cards.FirstOrDefault(c => c.CardNumber == cardNumber);
+            var card = _context.Cards.AsNoTracking().FirstOrDefault(c => c.CardNumber == cardNumber);
             if (card == null)
             {
                 return NotFound("Card not found.");
             }
 
-            return Ok(new { Balance = card.Balance });
+            return Ok(new { 
+                cardNumber = card.CardNumber,
+                Balance = card.Balance 
+            });
         }
     }
 }

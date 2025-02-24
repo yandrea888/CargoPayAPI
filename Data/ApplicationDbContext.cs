@@ -12,6 +12,9 @@ namespace CargoPayAPI.Data
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
+            modelBuilder.Entity<Card>()
+                .HasIndex(c => c.CardNumber)
+                .IsUnique(); 
             modelBuilder.Entity<Payment>()
                 .HasOne(p => p.Card)
                 .WithMany()  

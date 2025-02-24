@@ -13,8 +13,8 @@ namespace CargoPayAPI.Services
         private FeeService()
         {
             _random = new Random();
-            _currentFee = 1m; 
-            _timer = new Timer(UpdateFee, null, TimeSpan.FromHours(1), TimeSpan.FromHours(1));  
+            _currentFee = GetRandomFee(); 
+            _timer = new Timer(UpdateFee, null, TimeSpan.Zero, TimeSpan.FromHours(1)); 
         }
 
         public static FeeService Instance => _instance.Value;
@@ -26,8 +26,13 @@ namespace CargoPayAPI.Services
 
         private void UpdateFee(object state)
         {
-            decimal newMultiplier = (decimal)_random.NextDouble() * 2; 
-            _currentFee *= newMultiplier; 
+            decimal newMultiplier = (decimal)_random.NextDouble() * 2;
+            _currentFee *= newMultiplier;            
+        }
+
+        private decimal GetRandomFee()
+        {
+            return (decimal)_random.NextDouble() * 2;
         }
     }
 }

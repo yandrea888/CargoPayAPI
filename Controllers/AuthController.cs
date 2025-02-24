@@ -19,12 +19,10 @@ namespace CargoPayAPI.Controllers
 
         [HttpPost("login")]
         public IActionResult Login([FromBody] LoginRequest request)
-        {
-            // Aquí puedes validar credenciales (usuario/contraseña), pero por ahora lo simulamos
+        {            
             if (request.Username != "admin" || request.Password != "123456")
                 return Unauthorized("Invalid credentials");
-
-            // Crear el token JWT
+            
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(_config["JwtSettings:SecretKey"]);
 

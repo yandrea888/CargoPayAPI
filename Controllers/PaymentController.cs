@@ -41,8 +41,7 @@ namespace CargoPayAPI.Controllers
                 {
                     return BadRequest("Insufficient balance including fee.");
                 }
-
-                // Aplicamos concurrencia con EF Core
+                
                 card.Balance -= totalAmount;
                 payment.Fee = fee;
 
